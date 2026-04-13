@@ -1,13 +1,24 @@
-<!DOCTYPE html>
-<html lang="en">
-	<head>
-		<meta charset="UTF-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<title>RepoMind</title>
-		<link rel="stylesheet" href="/app/styles.css" />
-	</head>
-	<body>
-		<div id="root"></div>
-		<script src="/app/entry.client.tsx" type="module"></script>
-	</body>
-</html>
+import { Links, Meta, Outlet, Scripts } from "react-router";
+import "./styles.css";
+
+export function Layout({ children }: { children: React.ReactNode }) {
+	return (
+		<html lang="en">
+			<head>
+				<meta charSet="utf-8" />
+				<meta name="viewport" content="width=device-width, initial-scale=1" />
+				<title>RepoMind</title>
+				<Meta />
+				<Links />
+			</head>
+			<body>
+				{children}
+				<Scripts />
+			</body>
+		</html>
+	);
+}
+
+export default function App() {
+	return <Outlet />;
+}

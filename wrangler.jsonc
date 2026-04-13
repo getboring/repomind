@@ -39,7 +39,7 @@
 		{
 			"binding": "DB",
 			"database_name": "repomind-db",
-			"database_id": "repomind-db-local"
+			"database_id": "335d2892-e9ab-476d-a4e8-5817c1dfe172"
 		}
 	],
 	"durable_objects": {
