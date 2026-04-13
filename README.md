@@ -2,6 +2,11 @@
 
 AI-powered codebase intelligence. Ask natural language questions about any GitHub repository and get answers grounded in the actual code using RAG (Retrieval-Augmented Generation).
 
+**Live URLs:**
+- **Web UI:** https://repomind-web.pages.dev
+- **API / Worker:** https://repomind.codyboring.workers.dev
+- **GitHub:** https://github.com/getboring/repomind
+
 ## What It Does
 
 - **Indexes GitHub repositories** by fetching files, chunking code, and generating embeddings via Workers AI
