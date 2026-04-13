@@ -1,0 +1,66 @@
+{
+	"name": "repomind",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-04-13",
+	"compatibility_flags": ["nodejs_compat"],
+	"observability": {
+		"enabled": true
+	},
+	"ai": {
+		"binding": "AI"
+	},
+	"ai_gateway": {
+		"binding": "AI_GATEWAY",
+		"id": "repomind"
+	},
+	"vectorize": [
+		{
+			"binding": "VECTORIZE",
+			"index_name": "repomind-chunks"
+		}
+	],
+	"queues": {
+		"producers": [
+			{
+				"binding": "INDEX_QUEUE",
+				"queue": "repomind-indexer"
+			}
+		],
+		"consumers": [
+			{
+				"queue": "repomind-indexer",
+				"max_batch_size": 1,
+				"max_batch_timeout": 0,
+				"max_retries": 3
+			}
+		]
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "repomind-db",
+			"database_id": "repomind-db-local"
+		}
+	],
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "RepoMindAgent",
+				"class_name": "RepoMindAgent"
+			}
+		]
+	},
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": ["RepoMindAgent"]
+		}
+	],
+	"vars": {
+		"APP_NAME": "RepoMind",
+		"APP_VERSION": "0.1.0",
+		"GITHUB_API_URL": "https://api.github.com",
+		"MAX_FILE_SIZE": "1048576",
+		"CHUNK_BATCH_SIZE": "10"
+	}
+}

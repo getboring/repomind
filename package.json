@@ -1,0 +1,43 @@
+{
+	"name": "repomind",
+	"private": true,
+	"version": "0.1.0",
+	"type": "module",
+	"scripts": {
+		"dev": "concurrently \"wrangler dev\" \"cd web && npm run dev\"",
+		"deploy": "wrangler deploy",
+		"deploy:staging": "wrangler deploy --env staging",
+		"typecheck": "tsc --noEmit && cd web && tsc --noEmit",
+		"lint": "biome check . && cd web && biome check .",
+		"lint:fix": "biome check --write . && cd web && biome check --write .",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"db:migrate": "wrangler d1 migrations apply repomind-db --local",
+		"db:migrate:remote": "wrangler d1 migrations apply repomind-db --remote",
+		"db:generate": "drizzle-kit generate --config=drizzle.config.ts",
+		"vectorize:create": "wrangler vectorize create repomind-chunks --dimensions=384 --metric=cosine",
+		"cf-typegen": "wrangler types --include-runtime false",
+		"build:web": "cd web && react-router build",
+		"build": "npm run build:web"
+	},
+	"dependencies": {
+		"@cloudflare/ai-chat": "^0.1.9",
+		"@hono/zod-validator": "^0.7.6",
+		"agents": "^0.8.0",
+		"ai": "^6.0.0",
+		"hono": "^4.11.0",
+		"workers-ai-provider": "^3.0.0",
+		"zod": "^3.25.76"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.0.0",
+		"@cloudflare/vitest-pool-workers": "^0.8.0",
+		"@cloudflare/workers-types": "^4.20250413.0",
+		"concurrently": "^9.1.2",
+		"drizzle-kit": "^0.31.0",
+		"drizzle-orm": "^0.44.0",
+		"typescript": "^5.9.0",
+		"vitest": "^3.2.0",
+		"wrangler": "^4.50.0"
+	}
+}
