@@ -13,6 +13,7 @@ export class GitHubClient {
 		const headers: Record<string, string> = {
 			Accept: "application/vnd.github+json",
 			"X-GitHub-Api-Version": "2022-11-28",
+			"User-Agent": "RepoMind/0.1.0",
 		};
 
 		if (this.token) {
@@ -26,6 +27,8 @@ export class GitHubClient {
 		const response = await this.fetch(`/repos/${owner}/${name}`);
 
 		if (!response.ok) {
+			const body = await response.text();
+			console.error(`GitHub API error: ${response.status} ${response.statusText}`, body);
 			throw new Error(
 				`GitHub API error: ${response.status} ${response.statusText}`
 			);
