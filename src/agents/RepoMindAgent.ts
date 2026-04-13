@@ -62,7 +62,15 @@ export class RepoMindAgent extends AIChatAgent<Env, RepoMindState> {
 	}
 
 	async onChatMessage(onFinish) {
-		if (this.state.indexStatus !== "complete") {
+		// Check current index status from database
+		const repoRepo = new RepoRepository(this.env.DB);
+		const repo = await repoRepo.getRepoByOwnerAndName(
+			this.state.repoOwner,
+			this.state.repoName
+		);
+		const currentStatus = repo?.indexStatus ?? this.state.indexStatus;
+
+		if (currentStatus !== "complete") {
 			const model = createWorkersAI({ binding: this.env.AI })(
 				"@cf/meta/llama-3.3-70b-instruct-fp8-fast"
 			);
@@ -70,7 +78,7 @@ export class RepoMindAgent extends AIChatAgent<Env, RepoMindState> {
 			const result = streamText({
 				model,
 				system:
-					"You are RepoMind, a codebase intelligence assistant. The repository is still being indexed. Explain that you need a few moments and suggest the user try again shortly.",
+					`You are RepoMind, a codebase intelligence assistant. The repository ${this.state.repoOwner}/${this.state.repoName} is still being indexed (status: ${currentStatus}). Explain that you need a few moments and suggest the user try again shortly.`,
 				messages: await convertToModelMessages(this.messages),
 				onFinish,
 			});
