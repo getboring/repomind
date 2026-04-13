@@ -13,9 +13,13 @@ export default function Home() {
 		fetchRepos();
 	}, []);
 
+	const API_BASE = typeof window !== "undefined" && window.location.hostname.includes("pages.dev")
+		? "https://repomind.codyboring.workers.dev"
+		: "";
+
 	async function fetchRepos() {
 		try {
-			const res = await fetch("/api/repos");
+			const res = await fetch(`${API_BASE}/api/repos`);
 			const data = await res.json();
 			setRepos(data.repos);
 		} catch (err) {
@@ -29,7 +33,7 @@ export default function Home() {
 		setError(null);
 
 		try {
-			const res = await fetch("/api/repos", {
+			const res = await fetch(`${API_BASE}/api/repos`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ owner, name }),

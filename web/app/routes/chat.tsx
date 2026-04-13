@@ -6,10 +6,14 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { UIMessage } from "ai";
 
+const API_BASE = typeof window !== "undefined" && window.location.hostname.includes("pages.dev")
+	? "wss://repomind.codyboring.workers.dev"
+	: "";
+
 export default function Chat() {
 	const { owner, name } = useParams();
 	const agentName = `RepoMind:${owner}:${name}`;
-	const agent = useAgent({ agent: "RepoMindAgent", name: agentName });
+	const agent = useAgent({ agent: "RepoMindAgent", name: agentName, host: API_BASE || undefined });
 	const { messages, sendMessage, status } = useAgentChat({ agent });
 	const [input, setInput] = useState("");
 	const messagesEndRef = useRef<HTMLDivElement>(null);
