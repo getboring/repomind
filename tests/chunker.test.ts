@@ -1,6 +1,5 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, expect, it } from "vitest";
 import { chunkCode } from "../src/lib/chunker";
-import type { CodeChunk } from "../src/types";
 
 describe("chunkCode", () => {
 	it("should chunk a simple function", () => {
@@ -116,8 +115,8 @@ const x = 1;
 
 		const chunks = chunkCode(code, "test.ts");
 		// The imports should be in a chunk (either as import type or grouped)
-		const hasImports = chunks.some((c) =>
-			c.content.includes('import { a }') && c.content.includes('import { b }')
+		const hasImports = chunks.some(
+			(c) => c.content.includes("import { a }") && c.content.includes("import { b }")
 		);
 		expect(hasImports).toBe(true);
 	});
@@ -130,9 +129,7 @@ export { yetAnother, oneMore };
 
 		const chunks = chunkCode(code, "test.ts");
 		// export statements should be in chunks
-		const hasExports = chunks.some((c) =>
-			c.content.includes("export {")
-		);
+		const hasExports = chunks.some((c) => c.content.includes("export {"));
 		expect(hasExports).toBe(true);
 	});
 

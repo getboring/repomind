@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GitHubClient } from "../src/lib/github";
 
 describe("GitHubClient", () => {
@@ -6,7 +6,7 @@ describe("GitHubClient", () => {
 
 	beforeEach(() => {
 		client = new GitHubClient("test-token");
-		global.fetch = vi.fn();
+		(globalThis as typeof globalThis & { fetch: typeof fetch }).fetch = vi.fn();
 	});
 
 	it("should fetch default branch", async () => {
@@ -27,13 +27,11 @@ describe("GitHubClient", () => {
 	});
 
 	it("should throw on API error for default branch", async () => {
-		vi.mocked(fetch).mockResolvedValueOnce(
-			new Response("Not Found", { status: 404 })
-		);
+		vi.mocked(fetch).mockResolvedValueOnce(new Response("Not Found", { status: 404 }));
 
-		await expect(
-			client.getDefaultBranch("facebook", "nonexistent")
-		).rejects.toThrow("GitHub API error: 404");
+		await expect(client.getDefaultBranch("facebook", "nonexistent")).rejects.toThrow(
+			"GitHub API error: 404"
+		);
 	});
 
 	it("should fetch latest commit", async () => {
@@ -142,24 +140,18 @@ describe("GitHubClient", () => {
 	});
 
 	it("should fetch file content", async () => {
-		vi.mocked(fetch).mockResolvedValueOnce(
-			new Response("console.log('hello');", { status: 200 })
-		);
+		vi.mocked(fetch).mockResolvedValueOnce(new Response("console.log('hello');", { status: 200 }));
 
-		const content = await client.getFileContent(
-			"https://raw.githubusercontent.com/..."
-		);
+		const content = await client.getFileContent("https://raw.githubusercontent.com/...");
 		expect(content).toBe("console.log('hello');");
 	});
 
 	it("should throw on file fetch error", async () => {
-		vi.mocked(fetch).mockResolvedValueOnce(
-			new Response("Not Found", { status: 404 })
-		);
+		vi.mocked(fetch).mockResolvedValueOnce(new Response("Not Found", { status: 404 }));
 
-		await expect(
-			client.getFileContent("https://raw.githubusercontent.com/...")
-		).rejects.toThrow("Failed to fetch file: 404");
+		await expect(client.getFileContent("https://raw.githubusercontent.com/...")).rejects.toThrow(
+			"Failed to fetch file: 404"
+		);
 	});
 
 	it("should work without token", async () => {

@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { RepoRepository, IndexingJobRepository, QueryRepository } from "../src/db/repositories";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { IndexingJobRepository, QueryRepository, RepoRepository } from "../src/db/repositories";
 
 // Helper to create a chainable D1 mock
 function createMockDb(firstResults: (null | Record<string, unknown>)[] = []) {
@@ -93,9 +93,7 @@ describe("RepoRepository", () => {
 			fileCount: 10,
 		});
 
-		expect(mockDb.prepare).toHaveBeenCalledWith(
-			expect.stringContaining("UPDATE repos SET")
-		);
+		expect(mockDb.prepare).toHaveBeenCalledWith(expect.stringContaining("UPDATE repos SET"));
 	});
 
 	it("should list repos", async () => {
@@ -111,9 +109,7 @@ describe("RepoRepository", () => {
 
 	it("should delete repo", async () => {
 		await repo.deleteRepo("repo-owner-name");
-		expect(mockDb.prepare).toHaveBeenCalledWith(
-			"DELETE FROM repos WHERE id = ?"
-		);
+		expect(mockDb.prepare).toHaveBeenCalledWith("DELETE FROM repos WHERE id = ?");
 	});
 });
 
@@ -145,9 +141,7 @@ describe("IndexingJobRepository", () => {
 			filesProcessed: 5,
 		});
 
-		expect(mockDb.prepare).toHaveBeenCalledWith(
-			expect.stringContaining("status = ?")
-		);
+		expect(mockDb.prepare).toHaveBeenCalledWith(expect.stringContaining("status = ?"));
 	});
 
 	it("should update job status to complete with completed_at", async () => {
@@ -193,17 +187,9 @@ describe("QueryRepository", () => {
 	});
 
 	it("should update query response", async () => {
-		await queryRepo.updateQueryResponse(
-			"query-123",
-			"Auth uses JWT",
-			"[]",
-			100,
-			500
-		);
+		await queryRepo.updateQueryResponse("query-123", "Auth uses JWT", "[]", 100, 500);
 
-		expect(mockDb.prepare).toHaveBeenCalledWith(
-			expect.stringContaining("UPDATE queries")
-		);
+		expect(mockDb.prepare).toHaveBeenCalledWith(expect.stringContaining("UPDATE queries"));
 	});
 
 	it("should get queries for session", async () => {

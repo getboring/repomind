@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Env, IndexingJob } from "../src/types";
 
 // We need to test the indexer queue handler
@@ -12,7 +12,6 @@ describe("Indexer Worker", () => {
 			AI: {
 				run: vi.fn().mockResolvedValue({ data: [[0.1, 0.2, 0.3]] }),
 			} as unknown as Ai,
-			AI_GATEWAY: { id: "test" },
 			VECTORIZE: {
 				upsert: vi.fn().mockResolvedValue(undefined),
 			} as unknown as VectorizeIndex,
@@ -30,6 +29,7 @@ describe("Indexer Worker", () => {
 			GITHUB_API_URL: "https://api.github.com",
 			MAX_FILE_SIZE: "1048576",
 			CHUNK_BATCH_SIZE: "10",
+			AI_GATEWAY_ID: "repomind",
 			GITHUB_TOKEN: "test-token",
 		};
 
@@ -47,9 +47,9 @@ describe("Indexer Worker", () => {
 					retry: vi.fn(),
 				} as unknown as Message<IndexingJob>,
 			],
-		} as MessageBatch<IndexingJob>;
+		} as unknown as MessageBatch<IndexingJob>;
 
-		global.fetch = vi.fn();
+		(globalThis as typeof globalThis & { fetch: typeof fetch }).fetch = vi.fn();
 	});
 
 	it("should process indexing job successfully", async () => {
@@ -69,11 +69,9 @@ describe("Indexer Worker", () => {
 				)
 			)
 			// Mock file content
-			.mockResolvedValueOnce(
-				new Response("function hello() { return 'world'; }", { status: 200 })
-			);
+			.mockResolvedValueOnce(new Response("function hello() { return 'world'; }", { status: 200 }));
 
-		const { default: indexer } = await import("../src/workers/indexer");
+		const { default: indexer } = await import("../src/index");
 		await indexer.queue(mockBatch, mockEnv);
 
 		expect(mockEnv.DB.prepare).toHaveBeenCalledWith(
@@ -83,11 +81,9 @@ describe("Indexer Worker", () => {
 	});
 
 	it("should handle GitHub API errors gracefully", async () => {
-		vi.mocked(fetch).mockResolvedValueOnce(
-			new Response("Not Found", { status: 404 })
-		);
+		vi.mocked(fetch).mockResolvedValueOnce(new Response("Not Found", { status: 404 }));
 
-		const { default: indexer } = await import("../src/workers/indexer");
+		const { default: indexer } = await import("../src/index");
 		await indexer.queue(mockBatch, mockEnv);
 
 		// getFileTree handles 404 by logging and continuing with empty files
@@ -96,30 +92,29 @@ describe("Indexer Worker", () => {
 	});
 
 	it("should skip files exceeding max size", async () => {
-		vi.mocked(fetch).mockResolvedValueOnce(
-			new Response(
-				JSON.stringify([
-					{
-						path: "huge-file.ts",
-						type: "file",
-						size: 2_000_000,
-						download_url: "https://raw.githubusercontent.com/...",
-					},
-					{
-						path: "small-file.ts",
-						type: "file",
-						size: 100,
-						download_url: "https://raw.githubusercontent.com/...",
-					},
-				]),
-				{ status: 200 }
+		vi.mocked(fetch)
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify([
+						{
+							path: "huge-file.ts",
+							type: "file",
+							size: 2_000_000,
+							download_url: "https://raw.githubusercontent.com/...",
+						},
+						{
+							path: "small-file.ts",
+							type: "file",
+							size: 100,
+							download_url: "https://raw.githubusercontent.com/...",
+						},
+					]),
+					{ status: 200 }
+				)
 			)
-		)
-		.mockResolvedValueOnce(
-			new Response("const x = 1;", { status: 200 })
-		);
+			.mockResolvedValueOnce(new Response("const x = 1;", { status: 200 }));
 
-		const { default: indexer } = await import("../src/workers/indexer");
+		const { default: indexer } = await import("../src/index");
 		await indexer.queue(mockBatch, mockEnv);
 
 		// Should only process small-file.ts
@@ -152,7 +147,7 @@ describe("Indexer Worker", () => {
 			.mockRejectedValueOnce(new Error("Network error"))
 			.mockResolvedValueOnce(new Response("const x = 1;", { status: 200 }));
 
-		const { default: indexer } = await import("../src/workers/indexer");
+		const { default: indexer } = await import("../src/index");
 		await indexer.queue(mockBatch, mockEnv);
 
 		// Should still complete despite one file failing

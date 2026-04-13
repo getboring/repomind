@@ -1,5 +1,5 @@
 {
-	"$schema": "https://biomejs.dev/schemas/2.0.0/schema.json",
+	"$schema": "https://biomejs.dev/schemas/2.4.11/schema.json",
 	"vcs": {
 		"enabled": true,
 		"clientKind": "git",
@@ -7,7 +7,7 @@
 	},
 	"files": {
 		"ignoreUnknown": false,
-		"ignore": ["node_modules", "dist", ".wrangler", "*.d.ts"]
+		"includes": ["**", "!node_modules", "!dist", "!.wrangler", "!*.d.ts"]
 	},
 	"formatter": {
 		"enabled": true,
@@ -15,9 +15,6 @@
 		"indentStyle": "tab",
 		"indentWidth": 2,
 		"lineWidth": 100
-	},
-	"organizeImports": {
-		"enabled": true
 	},
 	"linter": {
 		"enabled": true,
@@ -40,6 +37,13 @@
 		"formatter": {
 			"quoteStyle": "double",
 			"trailingCommas": "es5"
+		}
+	},
+	"assist": {
+		"actions": {
+			"source": {
+				"organizeImports": "on"
+			}
 		}
 	}
 }

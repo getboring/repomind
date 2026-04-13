@@ -13,9 +13,10 @@ export default function Home() {
 		fetchRepos();
 	}, []);
 
-	const API_BASE = typeof window !== "undefined" && window.location.hostname.includes("pages.dev")
-		? "https://repomind.codyboring.workers.dev"
-		: "";
+	const API_BASE =
+		typeof window !== "undefined" && window.location.hostname.includes("pages.dev")
+			? "https://repomind.codyboring.workers.dev"
+			: "";
 
 	async function fetchRepos() {
 		try {

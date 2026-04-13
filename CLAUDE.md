@@ -5,8 +5,8 @@ AI-powered codebase intelligence for GitHub repositories. Ask natural language q
 
 ## Stack
 - **Runtime:** Cloudflare Workers (Durable Objects with SQLite)
-- **Agent:** `agents` SDK 0.8.0, `@cloudflare/ai-chat`
-- **AI:** Workers AI (`@cf/meta/llama-3.3-70b-instruct-fp8-fast`)
+- **Agent:** Native `DurableObject` with WebSocket hibernation
+- **AI:** Native Workers AI (`env.AI.run()`) with AI Gateway via options
 - **Embeddings:** `@cf/baai/bge-small-en-v1.5` (384-dim)
 - **Vector DB:** Cloudflare Vectorize
 - **Database:** D1 (SQLite)
@@ -24,8 +24,8 @@ pnpm deploy            # Deploy to Cloudflare
 ```
 
 ## Architecture
-- `src/index.ts` — Worker entry, routes agent requests + REST API
-- `src/agents/RepoMindAgent.ts` — AIChatAgent with RAG pipeline
+- `src/index.ts` — Worker entry, routes WebSocket/DO requests + REST API
+- `src/agents/RepoMindAgent.ts` — Native DurableObject with RAG pipeline
 - `src/api/routes.ts` — Hono REST API (repos, jobs, webhooks)
 - `src/workers/indexer.ts` — Queue consumer for repo indexing
 - `src/lib/chunker.ts` — Code chunking by function/class/interface
@@ -37,12 +37,13 @@ pnpm deploy            # Deploy to Cloudflare
 ## Key Files
 | File | Purpose |
 |------|---------|
-| `src/agents/RepoMindAgent.ts` | AIChatAgent, embed query, Vectorize search, stream response |
+| `src/agents/RepoMindAgent.ts` | Native DurableObject, embed query, Vectorize search, stream response |
 | `src/workers/indexer.ts` | Fetches GitHub files, chunks code, generates embeddings, upserts to Vectorize |
 | `src/lib/chunker.ts` | Parses TS/JS and chunks by constructs (function, class, interface, type) |
 | `src/api/routes.ts` | Hono router with zValidator, GitHub webhook handler |
 | `src/db/repositories.ts` | RepoRepository, IndexingJobRepository, QueryRepository |
-| `wrangler.jsonc` | All CF bindings: AI, Vectorize, D1, Queues, DO |
+| `wrangler.jsonc` | All CF bindings: AI, Vectorize, D1, Queues, DO, vars |
+| `src/lib/do-compat.ts` | Cross-environment DO/WebSocket compatibility shim |
 
 ## Commands
 ```bash
@@ -73,5 +74,5 @@ pnpm cf-typegen       # Generate worker types
 - D1 repositories (14 tests)
 - API routes (10 tests)
 - Indexer worker (4 tests)
-- Agent logic (7 tests)
+- Agent logic (5 tests)
 - Embeddings (5 tests)

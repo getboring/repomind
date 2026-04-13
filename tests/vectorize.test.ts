@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { upsertChunks, searchChunks, deleteRepoChunks } from "../src/lib/vectorize";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { deleteRepoChunks, searchChunks, upsertChunks } from "../src/lib/vectorize";
 import type { CodeChunk } from "../src/types";
 
 describe("vectorize", () => {
@@ -34,7 +34,6 @@ describe("vectorize", () => {
 		await upsertChunks(mockVectorize as unknown as VectorizeIndex, chunks, embeddings);
 
 		expect(mockVectorize.upsert).toHaveBeenCalledWith(
-			"repomind-chunks",
 			expect.arrayContaining([
 				expect.objectContaining({
 					id: "repo-test-test.ts-0",
@@ -103,9 +102,8 @@ describe("vectorize", () => {
 		expect(results[0].score).toBe(0.95);
 		expect(results[0].metadata.filePath).toBe("test.ts");
 		expect(mockVectorize.query).toHaveBeenCalledWith(
-			"repomind-chunks",
+			[0.1, 0.2, 0.3],
 			expect.objectContaining({
-				vector: [0.1, 0.2, 0.3],
 				topK: 5,
 				filter: { repoId: "repo-test" },
 			})
@@ -114,25 +112,19 @@ describe("vectorize", () => {
 
 	it("should delete repo chunks by querying and deleting IDs", async () => {
 		mockVectorize.query.mockResolvedValueOnce({
-			matches: [
-				{ id: "chunk-1" },
-				{ id: "chunk-2" },
-			],
+			matches: [{ id: "chunk-1" }, { id: "chunk-2" }],
 		});
 
 		await deleteRepoChunks(mockVectorize as unknown as VectorizeIndex, "repo-test");
 
 		expect(mockVectorize.query).toHaveBeenCalledWith(
-			"repomind-chunks",
+			expect.any(Array),
 			expect.objectContaining({
 				filter: { repoId: "repo-test" },
 				topK: 1000,
 			})
 		);
-		expect(mockVectorize.deleteByIds).toHaveBeenCalledWith(
-			"repomind-chunks",
-			["chunk-1", "chunk-2"]
-		);
+		expect(mockVectorize.deleteByIds).toHaveBeenCalledWith(["chunk-1", "chunk-2"]);
 	});
 
 	it("should not delete if no matches found", async () => {

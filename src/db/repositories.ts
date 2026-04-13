@@ -1,5 +1,5 @@
 import type { D1Database } from "@cloudflare/workers-types";
-import type { RepoRecord, IndexingJobRecord, QueryRecord } from "../types";
+import type { IndexingJobRecord, QueryRecord, RepoRecord } from "../types";
 
 export class RepoRepository {
 	constructor(private db: D1Database) {}
@@ -189,11 +189,7 @@ export class IndexingJobRepository {
 export class QueryRepository {
 	constructor(private db: D1Database) {}
 
-	async createQuery(
-		repoId: string,
-		sessionId: string,
-		queryText: string
-	): Promise<QueryRecord> {
+	async createQuery(repoId: string, sessionId: string, queryText: string): Promise<QueryRecord> {
 		const id = `query-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 
 		await this.db

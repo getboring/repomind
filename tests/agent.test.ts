@@ -1,100 +1,86 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { RepoMindAgent } from "../src/agents/RepoMindAgent";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Env } from "../src/types";
+
+// Mock the DO compat module for testing
+vi.mock("../src/lib/do-compat", () => ({
+	DurableObjectClass: class MockDurableObject {
+		constructor(
+			protected ctx: DurableObjectState,
+			protected env: Env
+		) {}
+		async fetch(_request: Request): Promise<Response> {
+			return new Response("Not implemented", { status: 501 });
+		}
+	},
+	WebSocketRequestResponsePairClass: class MockPair {
+		constructor(
+			public readonly request: string,
+			public readonly response: string
+		) {}
+	},
+	WebSocketPairClass: class MockWebSocketPair {
+		0 = {} as WebSocket;
+		1 = {} as WebSocket;
+	},
+}));
+
+// Import after mocking
+const { RepoMindAgent } = await import("../src/agents/RepoMindAgent");
 
 describe("RepoMindAgent", () => {
-	let mockAgent: {
-		name: string;
-		state: {
-			repoId: string;
-			repoOwner: string;
-			repoName: string;
-			indexStatus: string;
-			initialized: boolean;
-		};
-		setState: ReturnType<typeof vi.fn>;
-		parseInstanceName: ReturnType<typeof vi.fn>;
-	};
+	let mockEnv: Env;
+	let mockCtx: DurableObjectState;
 
 	beforeEach(() => {
-		mockAgent = {
-			name: "RepoMind:owner:name",
-			state: {
-				repoId: "",
-				repoOwner: "",
-				repoName: "",
-				indexStatus: "pending",
-				initialized: false,
-			},
-			setState: vi.fn(),
-			parseInstanceName: vi.fn().mockReturnValue({
-				repoId: "repo-owner-name",
-				owner: "owner",
-				name: "name",
-			}),
+		mockEnv = {
+			AI: {
+				run: vi.fn().mockResolvedValue(new ReadableStream()),
+			} as unknown as Ai,
+			VECTORIZE: {
+				query: vi.fn().mockResolvedValue({ matches: [] }),
+			} as unknown as VectorizeIndex,
+			DB: {
+				prepare: vi.fn().mockReturnThis(),
+				bind: vi.fn().mockReturnThis(),
+				run: vi.fn().mockResolvedValue(undefined),
+				first: vi.fn().mockResolvedValue(null),
+				all: vi.fn().mockResolvedValue({ results: [] }),
+			} as unknown as D1Database,
+			INDEX_QUEUE: {} as Queue,
+			RepoMindAgent: {} as DurableObjectNamespace,
+			APP_NAME: "RepoMind",
+			APP_VERSION: "0.1.0",
+			GITHUB_API_URL: "https://api.github.com",
+			MAX_FILE_SIZE: "1048576",
+			CHUNK_BATCH_SIZE: "10",
+			AI_GATEWAY_ID: "repomind",
 		};
+
+		mockCtx = {
+			acceptWebSocket: vi.fn(),
+			setWebSocketAutoResponse: vi.fn(),
+			id: { toString: () => "test-id" },
+			storage: {
+				get: vi.fn().mockResolvedValue(null),
+				put: vi.fn().mockResolvedValue(undefined),
+			},
+		} as unknown as DurableObjectState;
 	});
 
 	it("should parse instance name correctly", () => {
-		mockAgent.parseInstanceName.mockReturnValueOnce({
-			repoId: "repo-facebook-react",
-			owner: "facebook",
-			name: "react",
-		});
+		const agent = new RepoMindAgent(mockCtx, mockEnv);
+		// Access private method via any cast for testing
+		const parsed = (
+			agent as unknown as {
+				parseInstanceName(name: string): { repoId: string; owner: string; name: string };
+			}
+		).parseInstanceName("RepoMind:facebook:react");
 
-		const parsed = mockAgent.parseInstanceName("RepoMind:facebook:react");
 		expect(parsed).toEqual({
 			repoId: "repo-facebook-react",
 			owner: "facebook",
 			name: "react",
 		});
-	});
-
-	it("should initialize state on first start", () => {
-		mockAgent.state.initialized = false;
-
-		const parsed = mockAgent.parseInstanceName(mockAgent.name);
-		mockAgent.setState({
-			repoId: parsed.repoId,
-			repoOwner: parsed.owner,
-			repoName: parsed.name,
-			lastCommit: null,
-			indexStatus: "pending",
-			initialized: true,
-		});
-
-		expect(mockAgent.setState).toHaveBeenCalledWith({
-			repoId: "repo-owner-name",
-			repoOwner: "owner",
-			repoName: "name",
-			lastCommit: null,
-			indexStatus: "pending",
-			initialized: true,
-		});
-	});
-
-	it("should not reinitialize if already initialized", () => {
-		mockAgent.state.initialized = true;
-		mockAgent.state.repoId = "existing-id";
-
-		// Should not call setState again
-		expect(mockAgent.setState).not.toHaveBeenCalled();
-	});
-
-	it("should validate state changes from server", () => {
-		// Server can modify state
-		const nextState = { ...mockAgent.state, indexStatus: "complete" };
-		// Should not throw
-		expect(() => {
-			// Simulate server-side state change
-			mockAgent.state = nextState;
-		}).not.toThrow();
-	});
-
-	it("should prevent client from modifying repoId", () => {
-		// Client trying to modify repoId should be blocked
-		const nextState = { ...mockAgent.state, repoId: "hacked" };
-		// In real implementation, validateStateChange would throw
-		expect(nextState.repoId).not.toBe(mockAgent.state.repoId);
 	});
 
 	it("should build system prompt with chunks", () => {
@@ -121,6 +107,29 @@ describe("RepoMindAgent", () => {
 	it("should build system prompt without chunks", () => {
 		const prompt = buildSystemPrompt("owner", "name", []);
 		expect(prompt).toContain("No relevant code chunks found");
+	});
+
+	it("should return status via HTTP endpoint", async () => {
+		const agent = new RepoMindAgent(mockCtx, mockEnv);
+
+		// Mock the fetch method to test HTTP endpoints directly
+		// Skip WebSocket upgrade and test the status endpoint
+		const statusRequest = new Request("http://localhost/status");
+		const response = await agent.fetch(statusRequest);
+		const data = (await response.json()) as { repoOwner: string; repoName: string };
+
+		expect(data.repoOwner).toBe("");
+		expect(data.repoName).toBe("");
+	});
+
+	it("should return history via HTTP endpoint", async () => {
+		const agent = new RepoMindAgent(mockCtx, mockEnv);
+
+		const historyRequest = new Request("http://localhost/history");
+		const response = await agent.fetch(historyRequest);
+		const data = (await response.json()) as unknown[];
+
+		expect(Array.isArray(data)).toBe(true);
 	});
 });
 

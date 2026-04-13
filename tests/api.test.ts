@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import app from "../src/api/routes";
 import type { Env } from "../src/types";
 
@@ -48,9 +48,13 @@ describe("API Routes", () => {
 	beforeEach(() => {
 		mockDb = createMockDb();
 		mockEnv = {
-			AI: {} as Ai,
-			AI_GATEWAY: { id: "test" },
-			VECTORIZE: {} as VectorizeIndex,
+			AI: {
+				run: vi.fn().mockResolvedValue({ data: [[0.1, 0.2, 0.3]] }),
+			} as unknown as Ai,
+			VECTORIZE: {
+				query: vi.fn().mockResolvedValue({ matches: [] }),
+				deleteByIds: vi.fn().mockResolvedValue(undefined),
+			} as unknown as VectorizeIndex,
 			DB: mockDb,
 			INDEX_QUEUE: {
 				send: vi.fn().mockResolvedValue(undefined),
@@ -61,13 +65,14 @@ describe("API Routes", () => {
 			GITHUB_API_URL: "https://api.github.com",
 			MAX_FILE_SIZE: "1048576",
 			CHUNK_BATCH_SIZE: "10",
+			AI_GATEWAY_ID: "repomind",
 		};
 	});
 
 	it("GET /health should return status", async () => {
 		const req = new Request("http://localhost/health");
 		const res = await app.fetch(req, mockEnv);
-		const data = await res.json();
+		const data = (await res.json()) as { status: string; app: string };
 
 		expect(res.status).toBe(200);
 		expect(data.status).toBe("ok");
@@ -93,7 +98,7 @@ describe("API Routes", () => {
 
 		const req = new Request("http://localhost/api/repos");
 		const res = await app.fetch(req, mockEnv);
-		const data = await res.json();
+		const data = (await res.json()) as { repos: unknown[] };
 
 		expect(res.status).toBe(200);
 		expect(data.repos).toHaveLength(1);
@@ -116,7 +121,7 @@ describe("API Routes", () => {
 
 		const req = new Request("http://localhost/api/repos/owner/name");
 		const res = await app.fetch(req, mockEnv);
-		const data = await res.json();
+		const data = (await res.json()) as { id: string };
 
 		expect(res.status).toBe(200);
 		expect(data.id).toBe("repo-owner-name");
@@ -132,13 +137,12 @@ describe("API Routes", () => {
 	});
 
 	it("POST /api/repos should create repo and queue indexing", async () => {
-		global.fetch = vi.fn()
+		(globalThis as typeof globalThis & { fetch: typeof fetch }).fetch = vi
+			.fn()
 			.mockResolvedValueOnce(
 				new Response(JSON.stringify({ default_branch: "main" }), { status: 200 })
 			)
-			.mockResolvedValueOnce(
-				new Response(JSON.stringify({ sha: "abc123" }), { status: 200 })
-			);
+			.mockResolvedValueOnce(new Response(JSON.stringify({ sha: "abc123" }), { status: 200 }));
 
 		const mockRepo = {
 			id: "repo-owner-name",
@@ -156,7 +160,7 @@ describe("API Routes", () => {
 		});
 
 		const res = await app.fetch(req, mockEnv);
-		const data = await res.json();
+		const data = (await res.json()) as { id: string };
 
 		expect(res.status).toBe(201);
 		expect(data.id).toBe("repo-owner-name");
@@ -175,13 +179,12 @@ describe("API Routes", () => {
 	});
 
 	it("POST /api/repos/:owner/:name/reindex should queue reindex", async () => {
-		global.fetch = vi.fn()
+		(globalThis as typeof globalThis & { fetch: typeof fetch }).fetch = vi
+			.fn()
 			.mockResolvedValueOnce(
 				new Response(JSON.stringify({ default_branch: "main" }), { status: 200 })
 			)
-			.mockResolvedValueOnce(
-				new Response(JSON.stringify({ sha: "abc123" }), { status: 200 })
-			);
+			.mockResolvedValueOnce(new Response(JSON.stringify({ sha: "abc123" }), { status: 200 }));
 
 		const mockRepo = {
 			id: "repo-owner-name",
@@ -197,13 +200,13 @@ describe("API Routes", () => {
 		mockDb.setFirstResults([mockRepo, { id: "job-123" }]);
 
 		const res = await app.fetch(req, mockEnv);
-		const data = await res.json();
+		const data = (await res.json()) as { message: string };
 
 		expect(res.status).toBe(200);
 		expect(data.message).toBe("Reindexing queued");
 	});
 
-	it("DELETE /api/repos/:owner/:name should delete repo", async () => {
+	it("DELETE /api/repos/:owner/:name should delete repo and vectors", async () => {
 		const mockRepo = {
 			id: "repo-owner-name",
 			owner: "owner",
@@ -217,10 +220,11 @@ describe("API Routes", () => {
 		});
 
 		const res = await app.fetch(req, mockEnv);
-		const data = await res.json();
+		const data = (await res.json()) as { message: string };
 
 		expect(res.status).toBe(200);
 		expect(data.message).toBe("Repository deleted");
+		expect(mockEnv.VECTORIZE.query).toHaveBeenCalled();
 	});
 
 	it("POST /webhooks/github should handle push events", async () => {
@@ -248,7 +252,7 @@ describe("API Routes", () => {
 		mockDb.setFirstResults([mockRepo, { id: "job-123" }]);
 
 		const res = await app.fetch(req, mockEnv);
-		const data = await res.json();
+		const data = (await res.json()) as { message: string };
 
 		expect(res.status).toBe(200);
 		expect(data.message).toBe("Reindexing triggered");
@@ -262,9 +266,34 @@ describe("API Routes", () => {
 		});
 
 		const res = await app.fetch(req, mockEnv);
-		const data = await res.json();
+		const data = (await res.json()) as { message: string };
 
 		expect(res.status).toBe(200);
 		expect(data.message).toBe("Event ignored");
+	});
+
+	it("POST /webhooks/github should verify signature when secret is set", async () => {
+		mockEnv.WEBHOOK_SECRET = "test-secret";
+
+		// Request without signature should fail
+		const req = new Request("http://localhost/webhooks/github", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ ref: "refs/heads/main" }),
+		});
+
+		const res = await app.fetch(req, mockEnv);
+		expect(res.status).toBe(401);
+	});
+
+	it("should handle CORS preflight", async () => {
+		const req = new Request("http://localhost/api/repos", {
+			method: "OPTIONS",
+			headers: { Origin: "http://localhost:5173" },
+		});
+
+		const res = await app.fetch(req, mockEnv);
+		expect(res.status).toBe(204);
+		expect(res.headers.get("Access-Control-Allow-Origin")).toBe("http://localhost:5173");
 	});
 });

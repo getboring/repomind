@@ -1,15 +1,15 @@
-import type { D1Database, VectorizeIndex, Queue, Ai } from "@cloudflare/workers-types";
+import type { Ai, D1Database, Queue, VectorizeIndex } from "@cloudflare/workers-types";
 
 export interface Env {
 	// Cloudflare bindings
 	AI: Ai;
-	AI_GATEWAY: { id: string };
 	VECTORIZE: VectorizeIndex;
 	DB: D1Database;
 	INDEX_QUEUE: Queue<IndexingJob>;
 
 	// Durable Objects
-	RepoMindAgent: DurableObjectNamespace<import("./agents/RepoMindAgent").RepoMindAgent>;
+	// biome-ignore lint/suspicious/noExplicitAny: Circular type reference requires any
+	RepoMindAgent: DurableObjectNamespace<any>;
 
 	// Secrets
 	GITHUB_TOKEN?: string;
@@ -21,6 +21,7 @@ export interface Env {
 	GITHUB_API_URL: string;
 	MAX_FILE_SIZE: string;
 	CHUNK_BATCH_SIZE: string;
+	AI_GATEWAY_ID: string;
 }
 
 export interface IndexingJob {
@@ -77,7 +78,15 @@ export interface CodeChunk {
 	lineStart: number;
 	lineEnd: number;
 	content: string;
-	chunkType: "function" | "class" | "interface" | "type" | "import" | "export" | "comment" | "other";
+	chunkType:
+		| "function"
+		| "class"
+		| "interface"
+		| "type"
+		| "import"
+		| "export"
+		| "comment"
+		| "other";
 }
 
 export interface VectorizeMatch {
@@ -128,5 +137,12 @@ export interface RepoResponse {
 export interface ChatMessage {
 	role: "user" | "assistant";
 	content: string;
+	sources?: RagSource[];
+}
+
+export interface ChatStreamEvent {
+	type: "text" | "error" | "done";
+	content?: string;
+	error?: string;
 	sources?: RagSource[];
 }

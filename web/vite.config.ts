@@ -8,10 +8,15 @@ export default defineConfig({
 		port: 5173,
 		proxy: {
 			"/api": "http://localhost:8787",
-			"/agents": "http://localhost:8787",
+			"/chat": "http://localhost:8787",
 		},
 	},
 	build: {
 		outDir: "build",
+	},
+	define: {
+		"import.meta.env.VITE_API_BASE": JSON.stringify(
+			process.env.VITE_API_BASE || "https://repomind.codyboring.workers.dev"
+		),
 	},
 });

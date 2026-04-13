@@ -1,7 +1,6 @@
-import type { VectorizeIndex } from "@cloudflare/workers-types";
+import type { VectorizeIndex, VectorizeQueryOptions } from "@cloudflare/workers-types";
 import type { CodeChunk, VectorizeMatch } from "../types";
-
-const INDEX_NAME = "repomind-chunks";
+import { withRetry } from "./logging";
 
 export async function upsertChunks(
 	vectorize: VectorizeIndex,
@@ -29,29 +28,30 @@ export async function upsertChunks(
 	const batchSize = 100;
 	for (let i = 0; i < vectors.length; i += batchSize) {
 		const batch = vectors.slice(i, i + batchSize);
-		await vectorize.upsert(INDEX_NAME, batch);
+		await withRetry(() => vectorize.upsert(batch), {
+			context: { operation: "vectorize.upsert", batchSize: batch.length },
+		});
 	}
 }
 
-export async function deleteRepoChunks(
-	vectorize: VectorizeIndex,
-	repoId: string
-): Promise<void> {
-	// Vectorize doesn't support delete by filter directly in all cases
-	// We query all vectors for the repo and delete by ID
-	// In production, you'd use metadata filtering if available
+export async function deleteRepoChunks(vectorize: VectorizeIndex, repoId: string): Promise<void> {
 	const dummyEmbedding = new Array(384).fill(0);
-	const results = await vectorize.query(INDEX_NAME, {
-		vector: dummyEmbedding,
-		topK: 1000,
-		filter: { repoId },
-		returnMetadata: false,
-		returnVectors: false,
-	});
+	const results = await withRetry(
+		() =>
+			vectorize.query(dummyEmbedding, {
+				topK: 1000,
+				filter: { repoId },
+				returnMetadata: false,
+				returnVectors: false,
+			} as VectorizeQueryOptions),
+		{ context: { operation: "vectorize.query", repoId } }
+	);
 
 	if (results.matches.length > 0) {
 		const ids = results.matches.map((m) => m.id);
-		await vectorize.deleteByIds(INDEX_NAME, ids);
+		await withRetry(() => vectorize.deleteByIds(ids), {
+			context: { operation: "vectorize.deleteByIds", count: ids.length },
+		});
 	}
 }
 
@@ -61,13 +61,16 @@ export async function searchChunks(
 	queryEmbedding: number[],
 	topK = 5
 ): Promise<VectorizeMatch[]> {
-	const results = await vectorize.query(INDEX_NAME, {
-		vector: queryEmbedding,
-		topK,
-		filter: { repoId },
-		returnMetadata: true,
-		returnVectors: false,
-	});
+	const results = await withRetry(
+		() =>
+			vectorize.query(queryEmbedding, {
+				topK,
+				filter: { repoId },
+				returnMetadata: true,
+				returnVectors: false,
+			} as VectorizeQueryOptions),
+		{ context: { operation: "vectorize.searchChunks", repoId, topK } }
+	);
 
 	return results.matches.map((m) => ({
 		id: m.id,

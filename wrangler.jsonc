@@ -9,10 +9,6 @@
 	"ai": {
 		"binding": "AI"
 	},
-	"ai_gateway": {
-		"binding": "AI_GATEWAY",
-		"id": "repomind"
-	},
 	"vectorize": [
 		{
 			"binding": "VECTORIZE",
@@ -61,6 +57,7 @@
 		"APP_VERSION": "0.1.0",
 		"GITHUB_API_URL": "https://api.github.com",
 		"MAX_FILE_SIZE": "1048576",
-		"CHUNK_BATCH_SIZE": "10"
+		"CHUNK_BATCH_SIZE": "10",
+		"AI_GATEWAY_ID": "repomind"
 	}
 }

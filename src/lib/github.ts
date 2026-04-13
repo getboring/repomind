@@ -1,4 +1,5 @@
-import type { Env, GitHubFile } from "../types";
+import { logError, withRetry } from "./logging";
+import type { GitHubFile } from "../types";
 
 const GITHUB_API_URL = "https://api.github.com";
 
@@ -24,14 +25,18 @@ export class GitHubClient {
 	}
 
 	async getDefaultBranch(owner: string, name: string): Promise<string> {
-		const response = await this.fetch(`/repos/${owner}/${name}`);
+		const response = await withRetry(() => this.fetch(`/repos/${owner}/${name}`), {
+			context: { operation: "getDefaultBranch", owner, name },
+		});
 
 		if (!response.ok) {
 			const body = await response.text();
-			console.error(`GitHub API error: ${response.status} ${response.statusText}`, body);
-			throw new Error(
-				`GitHub API error: ${response.status} ${response.statusText}`
-			);
+			logError(`GitHub API error: ${response.status} ${response.statusText}`, new Error(body), {
+				operation: "getDefaultBranch",
+				owner,
+				name,
+			});
+			throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
 		}
 
 		const data = (await response.json()) as { default_branch: string };
@@ -39,32 +44,28 @@ export class GitHubClient {
 	}
 
 	async getLatestCommit(owner: string, name: string, branch: string): Promise<string> {
-		const response = await this.fetch(
-			`/repos/${owner}/${name}/commits/${branch}`
+		const response = await withRetry(
+			() => this.fetch(`/repos/${owner}/${name}/commits/${branch}`),
+			{ context: { operation: "getLatestCommit", owner, name, branch } }
 		);
 
 		if (!response.ok) {
-			throw new Error(
-				`GitHub API error: ${response.status} ${response.statusText}`
-			);
+			throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
 		}
 
 		const data = (await response.json()) as { sha: string };
 		return data.sha;
 	}
 
-	async getFileTree(
-		owner: string,
-		name: string,
-		commitSha: string
-	): Promise<GitHubFile[]> {
+	async getFileTree(owner: string, name: string, commitSha: string): Promise<GitHubFile[]> {
 		const files: GitHubFile[] = [];
 		const queue: string[] = [""];
 
 		while (queue.length > 0) {
 			const path = queue.shift() ?? "";
-			const response = await this.fetch(
-				`/repos/${owner}/${name}/contents/${path}?ref=${commitSha}`
+			const response = await withRetry(
+				() => this.fetch(`/repos/${owner}/${name}/contents/${path}?ref=${commitSha}`),
+				{ context: { operation: "getFileTree", owner, name, path } }
 			);
 
 			if (!response.ok) {
@@ -103,7 +104,9 @@ export class GitHubClient {
 	}
 
 	async getFileContent(downloadUrl: string): Promise<string> {
-		const response = await fetch(downloadUrl);
+		const response = await withRetry(() => fetch(downloadUrl), {
+			context: { operation: "getFileContent" },
+		});
 
 		if (!response.ok) {
 			throw new Error(`Failed to fetch file: ${response.status}`);

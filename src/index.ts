@@ -1,22 +1,46 @@
-import { routeAgentRequest } from "agents";
-import app from "./api/routes";
-import type { Env, IndexingJob } from "./types";
+import type { DurableObjectId } from "@cloudflare/workers-types";
 import { RepoMindAgent } from "./agents/RepoMindAgent";
-import { GitHubClient } from "./lib/github";
+import app from "./api/routes";
+import { IndexingJobRepository, RepoRepository } from "./db/repositories";
 import { chunkCode } from "./lib/chunker";
 import { embedTexts } from "./lib/embeddings";
+import { GitHubClient } from "./lib/github";
 import { upsertChunks } from "./lib/vectorize";
-import { RepoRepository, IndexingJobRepository } from "./db/repositories";
+import type { Env, IndexingJob } from "./types";
 
 const MAX_FILE_SIZE = 1_048_576; // 1MB
 const CHUNK_BATCH_SIZE = 10;
 
 export default {
 	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-		// Try agent routing first for WebSocket and agent requests
-		const agentResponse = await routeAgentRequest(request, env);
-		if (agentResponse) {
-			return agentResponse;
+		const url = new URL(request.url);
+
+		// Route WebSocket and DO requests
+		if (request.headers.get("Upgrade") === "websocket" && url.pathname.startsWith("/chat/")) {
+			const parts = url.pathname.slice("/chat/".length).split("/").filter(Boolean);
+			if (parts.length >= 2) {
+				const [owner, name] = parts;
+				const doNamespace = env.RepoMindAgent as unknown as { idFromName: (name: string) => DurableObjectId; get: (id: DurableObjectId) => { fetch: (req: Request) => Promise<Response> } };
+				const id = doNamespace.idFromName(`RepoMind:${owner}:${name}`);
+				const agent = doNamespace.get(id);
+				return agent.fetch(request);
+			}
+		}
+
+		// DO HTTP endpoints
+		if (url.pathname.startsWith("/agent/")) {
+			const parts = url.pathname.slice("/agent/".length).split("/").filter(Boolean);
+			if (parts.length >= 2) {
+				const [owner, name, ...rest] = parts;
+				const doNamespace = env.RepoMindAgent as unknown as { idFromName: (name: string) => DurableObjectId; get: (id: DurableObjectId) => { fetch: (req: Request) => Promise<Response> } };
+				const id = doNamespace.idFromName(`RepoMind:${owner}:${name}`);
+				const agent = doNamespace.get(id);
+				// Reconstruct the path for the DO
+				const doUrl = new URL(request.url);
+				doUrl.pathname = `/${rest.join("/")}`;
+				const doRequest = new Request(doUrl.toString(), request);
+				return agent.fetch(doRequest);
+			}
 		}
 
 		// Fall back to REST API
@@ -37,9 +61,7 @@ export default {
 
 				// Fetch file tree
 				const files = await github.getFileTree(owner, name, commitSha);
-				const codeFiles = files.filter(
-					(f) => f.size <= MAX_FILE_SIZE && f.downloadUrl
-				);
+				const codeFiles = files.filter((f) => f.size <= MAX_FILE_SIZE && f.downloadUrl);
 
 				let totalChunks = 0;
 

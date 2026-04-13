@@ -4,9 +4,8 @@ export default {
 	dialect: "sqlite",
 	schema: "./src/db/schema.ts",
 	out: "./migrations",
-	driver: "d1",
+	driver: "d1-http",
 	dbCredentials: {
-		wranglerConfigPath: "./wrangler.jsonc",
-		dbName: "repomind-db",
+		url: "",
 	},
 } satisfies Config;

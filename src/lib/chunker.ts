@@ -26,7 +26,7 @@ export function chunkCode(
 	// Parse and chunk by constructs
 	let currentChunk: string[] = [];
 	let currentStart = 0;
-	let inComment = false;
+	const inComment = false;
 	let braceDepth = 0;
 
 	for (let i = 0; i < lines.length; i++) {
@@ -64,9 +64,7 @@ export function chunkCode(
 		// Force chunk if too big (use >= to chunk at or before max)
 		const currentChunkText = currentChunk.join("\n");
 		if (currentChunkText.length >= maxChunkSize) {
-			chunks.push(
-				createChunk(filePath, currentChunk, currentStart, detectChunkType(currentChunk))
-			);
+			chunks.push(createChunk(filePath, currentChunk, currentStart, detectChunkType(currentChunk)));
 			currentChunk = [];
 			currentStart = i + 1;
 		}
@@ -76,9 +74,7 @@ export function chunkCode(
 	if (currentChunk.length > 0) {
 		const text = currentChunk.join("\n");
 		if (text.length >= minChunkSize) {
-			chunks.push(
-				createChunk(filePath, currentChunk, currentStart, detectChunkType(currentChunk))
-			);
+			chunks.push(createChunk(filePath, currentChunk, currentStart, detectChunkType(currentChunk)));
 		}
 	}
 
@@ -86,7 +82,7 @@ export function chunkCode(
 }
 
 function chunkByLines(
-	content: string,
+	_content: string,
 	filePath: string,
 	lines: string[],
 	maxChunkSize: number,
@@ -103,9 +99,7 @@ function chunkByLines(
 
 		if (currentText.length >= maxChunkSize) {
 			if (currentText.length >= minChunkSize) {
-				chunks.push(
-					createChunk(filePath, currentChunk, currentStart, "other")
-				);
+				chunks.push(createChunk(filePath, currentChunk, currentStart, "other"));
 			}
 			currentChunk = [];
 			currentStart = i + 1;
@@ -179,10 +173,8 @@ function isTypeStart(line: string): boolean {
 }
 
 function isImportBlock(lines: string[]): boolean {
-	return lines.every((line) =>
-		/^\s*import\s/.test(line) ||
-		line.trim() === "" ||
-		line.trim().startsWith("//")
+	return lines.every(
+		(line) => /^\s*import\s/.test(line) || line.trim() === "" || line.trim().startsWith("//")
 	);
 }
 
@@ -190,15 +182,24 @@ function isExportBlock(line: string): boolean {
 	// Match export { ... } or export * from "..."
 	if (/^\s*export\s*\{/.test(line)) return true;
 	if (/^\s*export\s+\*/.test(line)) return true;
-	return /^\s*export\s/.test(line) && !line.includes("function") && !line.includes("class") && !line.includes("const") && !line.includes("type") && !line.includes("interface") && !line.includes("default");
+	return (
+		/^\s*export\s/.test(line) &&
+		!line.includes("function") &&
+		!line.includes("class") &&
+		!line.includes("const") &&
+		!line.includes("type") &&
+		!line.includes("interface") &&
+		!line.includes("default")
+	);
 }
 
 function isCommentBlock(lines: string[]): boolean {
-	return lines.every((line) =>
-		/^\s*\/\//.test(line) ||
-		/^\s*\/\*/.test(line) ||
-		/^\s*\*/.test(line) ||
-		/^\s*\*\//.test(line) ||
-		line.trim() === ""
+	return lines.every(
+		(line) =>
+			/^\s*\/\//.test(line) ||
+			/^\s*\/\*/.test(line) ||
+			/^\s*\*/.test(line) ||
+			/^\s*\*\//.test(line) ||
+			line.trim() === ""
 	);
 }

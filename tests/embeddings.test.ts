@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { embedText, embedTexts } from "../src/lib/embeddings";
 
 describe("embeddings", () => {
@@ -50,16 +50,16 @@ describe("embeddings", () => {
 	it("should throw on empty embedding data", async () => {
 		mockAi.run.mockResolvedValueOnce({ data: [] });
 
-		await expect(
-			embedText(mockAi as unknown as Ai, "hello")
-		).rejects.toThrow("Embedding returned empty data");
+		await expect(embedText(mockAi as unknown as Ai, "hello")).rejects.toThrow(
+			"Embedding returned empty data"
+		);
 	});
 
 	it("should throw on invalid embedding data", async () => {
 		mockAi.run.mockResolvedValueOnce({ data: "invalid" });
 
-		await expect(
-			embedTexts(mockAi as unknown as Ai, ["hello"])
-		).rejects.toThrow("Embedding returned invalid data");
+		await expect(embedTexts(mockAi as unknown as Ai, ["hello"])).rejects.toThrow(
+			"Embedding returned invalid data"
+		);
 	});
 });

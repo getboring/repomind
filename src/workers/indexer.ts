@@ -1,9 +1,9 @@
-import type { Env, IndexingJob } from "../types";
-import { GitHubClient } from "../lib/github";
+import { IndexingJobRepository, RepoRepository } from "../db/repositories";
 import { chunkCode } from "../lib/chunker";
 import { embedTexts } from "../lib/embeddings";
+import { GitHubClient } from "../lib/github";
 import { upsertChunks } from "../lib/vectorize";
-import { RepoRepository, IndexingJobRepository } from "../db/repositories";
+import type { Env, IndexingJob } from "../types";
 
 const MAX_FILE_SIZE = 1_048_576; // 1MB
 const CHUNK_BATCH_SIZE = 10;
@@ -23,9 +23,7 @@ export default {
 
 				// Fetch file tree
 				const files = await github.getFileTree(owner, name, commitSha);
-				const codeFiles = files.filter(
-					(f) => f.size <= MAX_FILE_SIZE && f.downloadUrl
-				);
+				const codeFiles = files.filter((f) => f.size <= MAX_FILE_SIZE && f.downloadUrl);
 
 				let totalChunks = 0;
 
