@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { deleteRepoChunks, searchChunks, upsertChunks } from "../src/lib/vectorize";
-import type { CodeChunk } from "../types";
+import type { CodeChunk } from "../src/types";
 
 describe("vectorize", () => {
 	let mockVectorize: {
