@@ -17,8 +17,9 @@
 		"db:generate": "drizzle-kit generate --config=drizzle.config.ts",
 		"vectorize:create": "wrangler vectorize create repomind-chunks --dimensions=384 --metric=cosine",
 		"cf-typegen": "wrangler types --include-runtime false",
-		"build:web": "cd web && react-router build",
-		"build": "npm run build:web"
+		"build:web": "cd web && npm run build",
+		"build": "npm run build:web",
+		"deploy:web": "npm run build:web && wrangler pages deploy web/dist --project-name repomind-web"
 	},
 	"dependencies": {
 		"@hono/zod-validator": "^0.7.6",
