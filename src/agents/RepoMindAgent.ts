@@ -23,25 +23,16 @@ interface WebSocketMessage {
 	limit?: number;
 }
 
+const STATE_KEY = "state";
+const MESSAGES_KEY = "messages";
+
 export class RepoMindAgent extends DurableObjectClass {
 	// Explicitly declare ctx and env for TypeScript in both Workers and test environments
 	protected declare ctx: DurableObjectState;
 	protected declare env: Env;
-	private state: RepoMindState;
-	private messages: ChatMessage[] = [];
 
 	constructor(ctx: DurableObjectState, env: Env) {
 		super(ctx, env);
-
-		this.state = {
-			repoId: "",
-			repoOwner: "",
-			repoName: "",
-			lastCommit: null,
-			indexStatus: "pending",
-			initialized: false,
-		};
-
 		this.ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePairClass("ping", "pong"));
 	}
 
@@ -54,10 +45,15 @@ export class RepoMindAgent extends DurableObjectClass {
 			const [client, server] = Object.values(pair);
 
 			// Parse instance name from URL path
+			// URL can be /chat/owner/name or /owner/name (when forwarded from Worker)
 			const pathParts = url.pathname.split("/").filter(Boolean);
+			let startIndex = 0;
+			if (pathParts[0] === "chat") {
+				startIndex = 1;
+			}
 			const instanceName =
-				pathParts.length >= 2
-					? `RepoMind:${pathParts[0]}:${pathParts[1]}`
+				pathParts.length >= startIndex + 2
+					? `RepoMind:${pathParts[startIndex]}:${pathParts[startIndex + 1]}`
 					: url.searchParams.get("name") || "RepoMind:unknown:unknown";
 
 			await this.initialize(instanceName);
@@ -68,11 +64,11 @@ export class RepoMindAgent extends DurableObjectClass {
 
 		// HTTP API endpoints for the DO
 		if (url.pathname.endsWith("/status")) {
-			return this.getRepoStatusResponse();
+			return await this.getRepoStatusResponse();
 		}
 
 		if (url.pathname.endsWith("/history")) {
-			return this.getHistoryResponse();
+			return await this.getHistoryResponse();
 		}
 
 		return new Response("Not found", { status: 404 });
@@ -112,63 +108,102 @@ export class RepoMindAgent extends DurableObjectClass {
 		ws.close(code, reason);
 	}
 
+	private async getState(): Promise<RepoMindState> {
+		const stored = await this.ctx.storage.get<RepoMindState>(STATE_KEY);
+		return (
+			stored ?? {
+				repoId: "",
+				repoOwner: "",
+				repoName: "",
+				lastCommit: null,
+				indexStatus: "pending",
+				initialized: false,
+			}
+		);
+	}
+
+	private async setState(state: RepoMindState): Promise<void> {
+		await this.ctx.storage.put(STATE_KEY, state);
+	}
+
+	private async getMessages(): Promise<ChatMessage[]> {
+		const stored = await this.ctx.storage.get<ChatMessage[]>(MESSAGES_KEY);
+		return stored ?? [];
+	}
+
+	private async addMessage(message: ChatMessage): Promise<void> {
+		const messages = await this.getMessages();
+		messages.push(message);
+		await this.ctx.storage.put(MESSAGES_KEY, messages);
+	}
+
 	private async initialize(instanceName: string) {
-		if (!this.state.initialized) {
-			const parsed = this.parseInstanceName(instanceName);
-			this.state = {
+		const state = await this.getState();
+		const parsed = this.parseInstanceName(instanceName);
+		if (!state.initialized || !state.repoId || state.repoId !== parsed.repoId) {
+			await this.setState({
 				repoId: parsed.repoId,
 				repoOwner: parsed.owner,
 				repoName: parsed.name,
 				lastCommit: null,
 				indexStatus: "pending",
 				initialized: true,
-			};
+			});
 		}
 	}
 
 	private async handleChatMessage(ws: WebSocket, content: string) {
-		this.messages.push({ role: "user", content });
-
-		// Check current index status from database
-		const repoRepo = new RepoRepository(this.env.DB);
-		const repo = await repoRepo.getRepoByOwnerAndName(this.state.repoOwner, this.state.repoName);
-		const currentStatus = repo?.indexStatus ?? this.state.indexStatus;
-
-		if (currentStatus !== "complete") {
-			const response = `The repository ${this.state.repoOwner}/${this.state.repoName} is still being indexed (status: ${currentStatus}). Please try again shortly.`;
-			this.messages.push({ role: "assistant", content: response });
-			ws.send(JSON.stringify({ type: "text", content: response }));
-			ws.send(JSON.stringify({ type: "done" }));
-			return;
-		}
-
-		const queryRepo = new QueryRepository(this.env.DB);
-		const queryRecord = await queryRepo.createQuery(
-			this.state.repoId,
-			`${this.state.repoOwner}:${this.state.repoName}`,
-			content
-		);
-
-		const startTime = Date.now();
-
 		try {
+			await this.addMessage({ role: "user", content });
+
+			const state = await this.getState();
+			const messages = await this.getMessages();
+
+			// Check current index status from database
+			const repoRepo = new RepoRepository(this.env.DB);
+			const repo = await repoRepo.getRepoByOwnerAndName(state.repoOwner, state.repoName);
+			const currentStatus = repo?.indexStatus ?? state.indexStatus;
+
+			console.log(`Chat for ${state.repoOwner}/${state.repoName}: status=${currentStatus}, repoId=${state.repoId}`);
+
+			if (currentStatus !== "complete") {
+				const response = `The repository ${state.repoOwner}/${state.repoName} is still being indexed (status: ${currentStatus}). Please try again shortly.`;
+				await this.addMessage({ role: "assistant", content: response });
+				ws.send(JSON.stringify({ type: "text", content: response }));
+				ws.send(JSON.stringify({ type: "done" }));
+				return;
+			}
+
+			const queryRepo = new QueryRepository(this.env.DB);
+			const queryRecord = await queryRepo.createQuery(
+				state.repoId,
+				`${state.repoOwner}:${state.repoName}`,
+				content
+			);
+
+			const startTime = Date.now();
+
 			// 1. Embed query
 			const queryEmbedding = await embedText(this.env.AI, content);
 
 			// 2. Search Vectorize
 			const relevantChunks = await searchChunks(
 				this.env.VECTORIZE,
-				this.state.repoId,
+				state.repoId,
 				queryEmbedding,
 				5
 			);
 
+			console.log(`Found ${relevantChunks.length} relevant chunks`);
+
 			// 3. Stream response with RAG context
-			const systemPrompt = this.buildSystemPrompt(relevantChunks);
+			const systemPrompt = this.buildSystemPrompt(relevantChunks, state);
 			const messagesForAi = [
 				{ role: "system", content: systemPrompt },
-				...this.messages.map((m) => ({ role: m.role, content: m.content })),
+				...messages.map((m) => ({ role: m.role, content: m.content })),
 			];
+
+			console.log("Calling AI with messages:", JSON.stringify(messagesForAi));
 
 			const result = (await this.env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
 				messages: messagesForAi,
@@ -191,20 +226,26 @@ export class RepoMindAgent extends DurableObjectClass {
 				if (done) break;
 
 				const chunk = decoder.decode(value, { stream: true });
+				console.log("AI stream chunk:", chunk);
 				const lines = chunk.split("\n");
 
 				for (const line of lines) {
 					const trimmed = line.trim();
-					if (!trimmed) continue;
+					if (!trimmed || trimmed === "data: [DONE]") continue;
+					if (!trimmed.startsWith("data: ")) continue;
+
+					const jsonStr = trimmed.slice("data: ".length).trim();
+					if (!jsonStr) continue;
 
 					try {
-						const parsed = JSON.parse(trimmed);
+						const parsed = JSON.parse(jsonStr);
+						console.log("AI parsed:", parsed);
 						if (parsed.response) {
 							fullResponse += parsed.response;
 							ws.send(JSON.stringify({ type: "text", content: parsed.response }));
 						}
-					} catch {
-						// Ignore parse errors for partial chunks
+					} catch (e) {
+						console.log("AI parse error:", e, "for line:", trimmed);
 					}
 				}
 			}
@@ -226,7 +267,7 @@ export class RepoMindAgent extends DurableObjectClass {
 				latencyMs
 			);
 
-			this.messages.push({ role: "assistant", content: fullResponse, sources });
+			await this.addMessage({ role: "assistant", content: fullResponse, sources });
 			ws.send(JSON.stringify({ type: "done", sources }));
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error);
@@ -235,35 +276,39 @@ export class RepoMindAgent extends DurableObjectClass {
 		}
 	}
 
-	private getRepoStatus(): {
+	private async getRepoStatus(): Promise<{
 		repoId: string;
 		repoOwner: string;
 		repoName: string;
 		indexStatus: string;
-	} {
+	}> {
+		const state = await this.getState();
 		return {
-			repoId: this.state.repoId,
-			repoOwner: this.state.repoOwner,
-			repoName: this.state.repoName,
-			indexStatus: this.state.indexStatus,
+			repoId: state.repoId,
+			repoOwner: state.repoOwner,
+			repoName: state.repoName,
+			indexStatus: state.indexStatus,
 		};
 	}
 
-	private getRepoStatusResponse(): Response {
-		return new Response(JSON.stringify(this.getRepoStatus()), {
+	private async getRepoStatusResponse(): Promise<Response> {
+		const status = await this.getRepoStatus();
+		return new Response(JSON.stringify(status), {
 			headers: { "Content-Type": "application/json" },
 		});
 	}
 
-	private getHistory(limit?: number): Array<{ role: string; content: string }> {
-		return this.messages.slice(-(limit ?? 50)).map((m) => ({
+	private async getHistory(limit?: number): Promise<Array<{ role: string; content: string }>> {
+		const messages = await this.getMessages();
+		return messages.slice(-(limit ?? 50)).map((m) => ({
 			role: m.role,
 			content: m.content,
 		}));
 	}
 
-	private getHistoryResponse(): Response {
-		return new Response(JSON.stringify(this.getHistory()), {
+	private async getHistoryResponse(): Promise<Response> {
+		const history = await this.getHistory();
+		return new Response(JSON.stringify(history), {
 			headers: { "Content-Type": "application/json" },
 		});
 	}
@@ -288,7 +333,7 @@ export class RepoMindAgent extends DurableObjectClass {
 		};
 	}
 
-	private buildSystemPrompt(chunks: VectorizeMatch[]): string {
+	private buildSystemPrompt(chunks: VectorizeMatch[], state: RepoMindState): string {
 		const context =
 			chunks.length > 0
 				? chunks
@@ -301,10 +346,10 @@ ${c.metadata.content}
 `
 						)
 						.join("\n\n")
-				: "No relevant code chunks found.";
+					: "No relevant code chunks found.";
 
 		return `You are RepoMind, an AI assistant that helps developers understand codebases.
-You have access to the following code chunks from the repository ${this.state.repoOwner}/${this.state.repoName}:
+You have access to the following code chunks from the repository ${state.repoOwner}/${state.repoName}:
 
 ${context}
 

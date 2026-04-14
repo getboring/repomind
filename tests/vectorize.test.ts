@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { deleteRepoChunks, searchChunks, upsertChunks } from "../src/lib/vectorize";
-import type { CodeChunk } from "../src/types";
+import type { CodeChunk } from "../types";
 
 describe("vectorize", () => {
 	let mockVectorize: {
@@ -17,7 +17,7 @@ describe("vectorize", () => {
 		};
 	});
 
-	it("should upsert chunks with embeddings", async () => {
+	it("should upsert chunks with embeddings and namespace", async () => {
 		const chunks: CodeChunk[] = [
 			{
 				id: "test.ts-0",
@@ -37,6 +37,7 @@ describe("vectorize", () => {
 			expect.arrayContaining([
 				expect.objectContaining({
 					id: "repo-test-test.ts-0",
+					namespace: "repo-test",
 					values: [0.1, 0.2, 0.3],
 					metadata: expect.objectContaining({
 						repoId: "repo-test",
@@ -73,7 +74,7 @@ describe("vectorize", () => {
 		expect(mockVectorize.upsert).toHaveBeenCalledTimes(3);
 	});
 
-	it("should search chunks with filter", async () => {
+	it("should search chunks in namespace", async () => {
 		mockVectorize.query.mockResolvedValueOnce({
 			matches: [
 				{
@@ -105,12 +106,14 @@ describe("vectorize", () => {
 			[0.1, 0.2, 0.3],
 			expect.objectContaining({
 				topK: 5,
-				filter: { repoId: "repo-test" },
+				namespace: "repo-test",
+				returnMetadata: true,
+				returnValues: false,
 			})
 		);
 	});
 
-	it("should delete repo chunks by querying and deleting IDs", async () => {
+	it("should delete repo chunks by querying and deleting IDs in namespace", async () => {
 		mockVectorize.query.mockResolvedValueOnce({
 			matches: [{ id: "chunk-1" }, { id: "chunk-2" }],
 		});
@@ -120,8 +123,10 @@ describe("vectorize", () => {
 		expect(mockVectorize.query).toHaveBeenCalledWith(
 			expect.any(Array),
 			expect.objectContaining({
-				filter: { repoId: "repo-test" },
 				topK: 1000,
+				namespace: "repo-test",
+				returnMetadata: false,
+				returnValues: false,
 			})
 		);
 		expect(mockVectorize.deleteByIds).toHaveBeenCalledWith(["chunk-1", "chunk-2"]);

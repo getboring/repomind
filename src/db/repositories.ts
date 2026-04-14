@@ -32,9 +32,35 @@ export class RepoRepository {
 		const result = await this.db
 			.prepare("SELECT * FROM repos WHERE id = ?")
 			.bind(id)
-			.first<RepoRecord>();
+			.first<{
+				id: string;
+				owner: string;
+				name: string;
+				default_branch: string;
+				last_commit_sha: string | null;
+				last_indexed_at: number | null;
+				index_status: RepoRecord["indexStatus"];
+				file_count: number;
+				chunk_count: number;
+				error_message: string | null;
+				created_at: number;
+			}>();
 
-		return result ?? null;
+		if (!result) return null;
+
+		return {
+			id: result.id,
+			owner: result.owner,
+			name: result.name,
+			defaultBranch: result.default_branch,
+			lastCommitSha: result.last_commit_sha,
+			lastIndexedAt: result.last_indexed_at,
+			indexStatus: result.index_status,
+			fileCount: result.file_count,
+			chunkCount: result.chunk_count,
+			errorMessage: result.error_message,
+			createdAt: result.created_at,
+		};
 	}
 
 	async getRepoByOwnerAndName(owner: string, name: string): Promise<RepoRecord | null> {
@@ -87,9 +113,33 @@ export class RepoRepository {
 		const { results } = await this.db
 			.prepare("SELECT * FROM repos ORDER BY created_at DESC LIMIT ? OFFSET ?")
 			.bind(limit, offset)
-			.all<RepoRecord>();
+			.all<{
+				id: string;
+				owner: string;
+				name: string;
+				default_branch: string;
+				last_commit_sha: string | null;
+				last_indexed_at: number | null;
+				index_status: RepoRecord["indexStatus"];
+				file_count: number;
+				chunk_count: number;
+				error_message: string | null;
+				created_at: number;
+			}>();
 
-		return results ?? [];
+		return (results ?? []).map((r) => ({
+			id: r.id,
+			owner: r.owner,
+			name: r.name,
+			defaultBranch: r.default_branch,
+			lastCommitSha: r.last_commit_sha,
+			lastIndexedAt: r.last_indexed_at,
+			indexStatus: r.index_status,
+			fileCount: r.file_count,
+			chunkCount: r.chunk_count,
+			errorMessage: r.error_message,
+			createdAt: r.created_at,
+		}));
 	}
 
 	async deleteRepo(id: string): Promise<void> {
@@ -125,9 +175,33 @@ export class IndexingJobRepository {
 		const result = await this.db
 			.prepare("SELECT * FROM indexing_jobs WHERE id = ?")
 			.bind(id)
-			.first<IndexingJobRecord>();
+			.first<{
+				id: string;
+				repo_id: string;
+				commit_sha: string;
+				status: IndexingJobRecord["status"];
+				queued_at: number;
+				started_at: number | null;
+				completed_at: number | null;
+				files_processed: number;
+				chunks_created: number;
+				error_message: string | null;
+			}>();
 
-		return result ?? null;
+		if (!result) return null;
+
+		return {
+			id: result.id,
+			repoId: result.repo_id,
+			commitSha: result.commit_sha,
+			status: result.status,
+			queuedAt: result.queued_at,
+			startedAt: result.started_at,
+			completedAt: result.completed_at,
+			filesProcessed: result.files_processed,
+			chunksCreated: result.chunks_created,
+			errorMessage: result.error_message,
+		};
 	}
 
 	async updateJobStatus(
@@ -180,9 +254,31 @@ export class IndexingJobRepository {
 			`
 			)
 			.bind(repoId, limit)
-			.all<IndexingJobRecord>();
+			.all<{
+				id: string;
+				repo_id: string;
+				commit_sha: string;
+				status: IndexingJobRecord["status"];
+				queued_at: number;
+				started_at: number | null;
+				completed_at: number | null;
+				files_processed: number;
+				chunks_created: number;
+				error_message: string | null;
+			}>();
 
-		return results ?? [];
+		return (results ?? []).map((r) => ({
+			id: r.id,
+			repoId: r.repo_id,
+			commitSha: r.commit_sha,
+			status: r.status,
+			queuedAt: r.queued_at,
+			startedAt: r.started_at,
+			completedAt: r.completed_at,
+			filesProcessed: r.files_processed,
+			chunksCreated: r.chunks_created,
+			errorMessage: r.error_message,
+		}));
 	}
 }
 
@@ -214,9 +310,31 @@ export class QueryRepository {
 		const result = await this.db
 			.prepare("SELECT * FROM queries WHERE id = ?")
 			.bind(id)
-			.first<QueryRecord>();
+			.first<{
+				id: string;
+				repo_id: string;
+				session_id: string;
+				query_text: string;
+				response_text: string | null;
+				sources: string | null;
+				tokens_used: number | null;
+				latency_ms: number | null;
+				created_at: number;
+			}>();
 
-		return result ?? null;
+		if (!result) return null;
+
+		return {
+			id: result.id,
+			repoId: result.repo_id,
+			sessionId: result.session_id,
+			queryText: result.query_text,
+			responseText: result.response_text,
+			sources: result.sources,
+			tokensUsed: result.tokens_used,
+			latencyMs: result.latency_ms,
+			createdAt: result.created_at,
+		};
 	}
 
 	async updateQueryResponse(
@@ -249,8 +367,28 @@ export class QueryRepository {
 			`
 			)
 			.bind(sessionId, limit)
-			.all<QueryRecord>();
+			.all<{
+				id: string;
+				repo_id: string;
+				session_id: string;
+				query_text: string;
+				response_text: string | null;
+				sources: string | null;
+				tokens_used: number | null;
+				latency_ms: number | null;
+				created_at: number;
+			}>();
 
-		return results ?? [];
+		return (results ?? []).map((r) => ({
+			id: r.id,
+			repoId: r.repo_id,
+			sessionId: r.session_id,
+			queryText: r.query_text,
+			responseText: r.response_text,
+			sources: r.sources,
+			tokensUsed: r.tokens_used,
+			latencyMs: r.latency_ms,
+			createdAt: r.created_at,
+		}));
 	}
 }

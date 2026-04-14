@@ -125,9 +125,15 @@ describe("IndexingJobRepository", () => {
 	it("should create a job", async () => {
 		const mockJob = {
 			id: "job-123",
-			repoId: "repo-test",
-			commitSha: "abc123",
+			repo_id: "repo-test",
+			commit_sha: "abc123",
 			status: "queued",
+			queued_at: 1000,
+			started_at: null,
+			completed_at: null,
+			files_processed: 0,
+			chunks_created: 0,
+			error_message: null,
 		};
 
 		mockDb.setFirstResults([mockJob]);
@@ -155,11 +161,25 @@ describe("IndexingJobRepository", () => {
 	});
 
 	it("should get jobs for repo", async () => {
-		const mockJobs = [{ id: "job-1" }, { id: "job-2" }];
+		const mockJobs = [
+			{
+				id: "job-1",
+				repo_id: "repo-test",
+				commit_sha: "abc",
+				status: "complete",
+				queued_at: 1000,
+				started_at: 1001,
+				completed_at: 1002,
+				files_processed: 10,
+				chunks_created: 50,
+				error_message: null,
+			},
+		];
 		mockDb.all.mockResolvedValueOnce({ results: mockJobs });
 
 		const result = await jobRepo.getJobsForRepo("repo-test");
-		expect(result).toEqual(mockJobs);
+		expect(result).toHaveLength(1);
+		expect(result[0].repoId).toBe("repo-test");
 	});
 });
 
@@ -175,9 +195,14 @@ describe("QueryRepository", () => {
 	it("should create a query", async () => {
 		const mockQuery = {
 			id: "query-123",
-			repoId: "repo-test",
-			sessionId: "session-1",
-			queryText: "How does auth work?",
+			repo_id: "repo-test",
+			session_id: "session-1",
+			query_text: "How does auth work?",
+			response_text: null,
+			sources: null,
+			tokens_used: null,
+			latency_ms: null,
+			created_at: 1000,
 		};
 
 		mockDb.setFirstResults([mockQuery]);
