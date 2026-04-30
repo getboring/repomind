@@ -6,9 +6,12 @@
 	"observability": {
 		"enabled": true
 	},
-	"ai": {
-		"binding": "AI"
-	},
+	// AI binding COMMENTED OUT 2026-04-30 — billing safety after $332/day incident.
+	// RepoMind uses env.AI for embeddings and chat. Restore when auth/rate-limit/budget-alert
+	// guard is in place. See holston-pulse audit for the full incident report.
+	// "ai": {
+	// 	"binding": "AI"
+	// },
 	"vectorize": [
 		{
 			"binding": "VECTORIZE",
